@@ -1,7 +1,7 @@
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import otpGenerator from 'otp-generator';
-import { InitialUser, CompleteUser } from '../models/User.js';
+import { InitialUser, User } from '../models/User.js';
 
 // Assume you have this function implemented
 import { sendWhatsAppOTP } from '../utils/whatsappApi.js';

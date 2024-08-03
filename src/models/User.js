@@ -1,57 +1,38 @@
-import { Schema, model } from 'mongoose';
+import mongoose from 'mongoose';
 
-// Initial user schema for registration
-const initialUserSchema = new Schema({
+const initialUserSchema = new mongoose.Schema({
     email: { type: String, required: true, unique: true },
-    whatsapp: { type: String, required: true, unique: true }
-}, { timestamps: true });
+    whatsapp: { type: String, required: true, unique: true },
+    otp: { type: String },
+    otpExpires: { type: Date }
+});
 
-
-// Complete user schema
-const completeUserSchema = new Schema({
+const userSchema = new mongoose.Schema({
     email: { type: String, required: true, unique: true },
+    whatsapp: { type: String, required: true, unique: true },
     password: { type: String, required: true },
     name: { type: String, required: true },
-    whatsapp: { type: String, required: true },
     photo: { type: String, required: true },
     address: { type: String, required: true },
-    contacts: {
-        type: [{
-            id: { type: String, required: true },
-            name: { type: String, required: true },
-            phone: { type: String, required: true },
-            email: { type: String, required: true }
-        }],
-        validate: [arrayMinLength(1), 'Contacts must have at least 1 items']
-    },
+    contacts: [{
+        name: { type: String, required: true },
+        phone: { type: String, required: true },
+        email: { type: String, required: true }
+    }],
     locations: [{
         latitude: { type: Number, required: true },
         longitude: { type: Number, required: true },
-        timestamp: { type: Date }
-    }, { default: [] }],
-    places: {
-        type: [{
-            id: { type: String, required: true },
-            name: { type: String, required: true },
-            latitude: { type: Number, required: true },
-            longitude: { type: Number, required: true }
-        }],
-        validate: [arrayMinLength(2), 'Places must have at least 1 items']
-    },
-    profileComplete: { type: Boolean, default: false }
-}, { timestamps: true });
+        timestamp: { type: Date, required: true }
+    }],
+    places: [{
+        name: { type: String, required: true },
+        latitude: { type: Number, required: true },
+        longitude: { type: Number, required: true }
+    }],
+    profileComplete: { type: Boolean, default: false },
+    resetPasswordToken: String,
+    resetPasswordExpires: Date
+});
 
-
-
-// Custom validator function
-function arrayMinLength(minLength) {
-    return function (val) {
-        return val.length >= minLength;
-    };
-}
-
-
-const InitialUser = model('InitialUser', initialUserSchema);
-const CompleteUser = model('CompleteUser', completeUserSchema);
-
-export { InitialUser, CompleteUser };
+export const InitialUser = mongoose.model('InitialUser', initialUserSchema);
+export const User = mongoose.model('user', userSchema);
