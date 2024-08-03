@@ -3,7 +3,7 @@ import { Schema, model } from 'mongoose';
 // Initial user schema for registration
 const initialUserSchema = new Schema({
     email: { type: String, required: true, unique: true },
-    password: { type: String, required: true }
+    whatsapp: { type: String, required: true, unique: true }
 }, { timestamps: true });
 
 
@@ -12,7 +12,7 @@ const completeUserSchema = new Schema({
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
     name: { type: String, required: true },
-    phone: { type: String, required: true },
+    whatsapp: { type: String, required: true },
     photo: { type: String, required: true },
     address: { type: String, required: true },
     contacts: {

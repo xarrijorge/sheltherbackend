@@ -1,66 +1,104 @@
 import bcrypt from 'bcrypt';
+import crypto from 'crypto';
+import otpGenerator from 'otp-generator';
 import { InitialUser, CompleteUser } from '../models/User.js';
 
-// Function to check if profile is complete
-function profileComplete(user) {
+// Assume you have this function implemented
+import { sendWhatsAppOTP } from '../utils/whatsappApi.js';
+import { sendEmailOTP } from '../utils/emailMessage.js';
+import { generateToken } from '../utils/generateJwtToken.js';
+
+
+
+
+
+const profileComplete = (user) => {
     return user.name && user.phone && user.address && user.photo && user.contacts.length === 5 && user.places.length === 5;
-}
+};
 
-// Register a new user
+
+
+// Main Controller functions
 export const registerUser = async (req, res) => {
-    const { email, password } = req.body;
+    const { email, whatsapp, otpMethod } = req.body;
 
-    // Validate input
-    if (!email || !password) {
+    if (!email || !whatsapp) {
         return res.status(400).json({ error: 'Missing required fields' });
     }
 
     try {
-        // Check if email already exists
-        const existingEmail = await InitialUser.findOne({ email });
-        if (existingEmail) {
-            return res.status(400).json({ error: 'Email already in use' });
+        const existingData = await InitialUser.findOne({ $or: [{ email }, { whatsapp }] });
+        if (existingData) {
+            return res.status(400).json({ error: 'Email or whatsapp number already in use' });
         }
 
-        // Hash password
-        const hashedPassword = await bcrypt.hash(password, 10);
+        const otp = otpGenerator.generate(6, { upperCase: false, specialChars: false });
+        const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // OTP valid for 10 minutes
 
         const initialUser = new InitialUser({
             email,
-            password: hashedPassword
+            whatsapp,
+            otp,
+            otpExpires
         });
 
         await initialUser.save();
-        res.status(201).json({ message: 'User registered successfully' });
+
+        if (otpMethod === 'email') {
+            await sendEmailOTP(email, otp);
+        } else {
+            await sendWhatsAppOTP(whatsapp, 'auth_otp', { otp });
+        }
+
+        res.status(201).json({ message: 'User registered successfully. Please verify OTP.' });
     } catch (error) {
         res.status(400).json({ error: 'User registration failed' });
     }
 };
 
-// Complete user profile
-export const completeUserProfile = async (req, res) => {
-    const { email, name, phone, photo, address, contacts, locations, places } = req.body;
+export const verifyOtp = async (req, res) => {
+    const { email, otp } = req.body;
 
-    // Validate input
-    if (!email || !name || !phone || !photo || !address || !contacts || contacts.length < 1 || !places || places.length < 2) {
+    try {
+        const user = await InitialUser.findOne({ email });
+        if (!user) {
+            return res.status(400).json({ error: 'User not found' });
+        }
+
+        if (user.otp !== otp || user.otpExpires < new Date()) {
+            return res.status(400).json({ error: 'Invalid or expired OTP' });
+        }
+
+        user.otp = undefined;
+        user.otpExpires = undefined;
+        await user.save();
+
+        res.status(200).json({ message: 'OTP verified successfully. Please complete your profile.' });
+    } catch (error) {
+        res.status(400).json({ error: 'OTP verification failed' });
+    }
+};
+
+export const completeUserProfile = async (req, res) => {
+    const { email, password, name, photo, address, contacts, locations, places } = req.body;
+
+    if (!email || !password || !name || !photo || !address || !contacts || contacts.length < 1 || !places || places.length < 2) {
         return res.status(400).json({ error: 'Missing or insufficient required fields' });
     }
 
     try {
-
-        // Find the initial user
         const initialUser = await InitialUser.findOne({ email });
         if (!initialUser) {
-            return res.status(400).json({ error: 'Initial registration not found' });
+            return res.status(400).json({ error: 'Initial registration not found or OTP not verified' });
         }
 
-        // Create complete user with data from initial user and additional data
+        const hashedPassword = await bcrypt.hash(password, 10);
+
         const completeUser = new CompleteUser({
-            _id: initialUser._id, // Copy the id from initial user
             email: initialUser.email,
-            password: initialUser.password,
+            password: hashedPassword,
             name,
-            phone,
+            whatsapp: initialUser.whatsapp,
             photo,
             address,
             contacts,
@@ -70,50 +108,151 @@ export const completeUserProfile = async (req, res) => {
 
         completeUser.profileComplete = profileComplete(completeUser);
 
-        // Delete initial user
         await InitialUser.deleteOne({ email });
         await completeUser.save();
 
+        const token = generateToken(completeUser);
 
-        const adj = completeUser.profileComplete ? 'completed' : 'updated';
-
-        res.status(200).json({ message: `User profile ${adj} successfully`, user: completeUser });
+        res.status(200).json({
+            message: 'User profile completed successfully',
+            user: completeUser,
+            token
+        });
     } catch (error) {
         res.status(400).json({ error: 'User profile completion failed' });
     }
 };
 
-// Login user
+
 export const loginUser = async (req, res) => {
     const { email, password } = req.body;
 
-    // Validate input
     if (!email || !password) {
         return res.status(400).json({ error: 'Missing required fields' });
     }
 
     try {
-        // Find the user in complete users
-        let user = await CompleteUser.findOne({ email });
-
-        // If not found in complete users, check initial users
+        const user = await CompleteUser.findOne({ email });
         if (!user) {
-            user = await InitialUser.findOne({ email });
-            if (!user) {
-                return res.status(400).json({ error: 'User not found' });
-            }
+            return res.status(400).json({ error: 'User not found' });
         }
 
-        // Check password
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
             return res.status(400).json({ error: 'Invalid credentials' });
         }
 
-        res.status(200).json({ message: 'Login successful', user });
+        const tokens = generateToken(user);
+
+        res.status(200).json({ message: 'Login successful', user, ...tokens });
     } catch (error) {
         res.status(400).json({ error: 'Login failed' });
     }
 };
 
-// Additional controller functions (e.g., update, delete) can be added here
+
+// Helper Controller functions
+export const refreshToken = async (req, res) => {
+    const { refreshToken } = req.body;
+    if (!refreshToken) {
+        return res.status(400).json({ error: 'Refresh token required' });
+    }
+
+    try {
+        const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+        const user = await CompleteUser.findById(decoded.id);
+        if (!user) {
+            return res.status(400).json({ error: 'User not found' });
+        }
+
+        const tokens = generateToken(user);
+        res.status(200).json(tokens);
+    } catch (error) {
+        res.status(401).json({ error: 'Invalid refresh token' });
+    }
+};
+
+export const logoutUser = async (req, res) => {
+
+    res.status(200).json({ message: 'Logged out successfully' });
+};
+
+export const changePassword = async (req, res) => {
+    const { currentPassword, newPassword } = req.body;
+    const userId = req.user.id; // Assuming you have middleware to extract user from token
+
+    try {
+        const user = await CompleteUser.findById(userId);
+        if (!user) {
+            return res.status(400).json({ error: 'User not found' });
+        }
+
+        const isMatch = await bcrypt.compare(currentPassword, user.password);
+        if (!isMatch) {
+            return res.status(400).json({ error: 'Current password is incorrect' });
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        user.password = hashedPassword;
+        await user.save();
+
+        res.status(200).json({ message: 'Password changed successfully' });
+    } catch (error) {
+        res.status(400).json({ error: 'Password change failed' });
+    }
+};
+
+export const forgotPassword = async (req, res) => {
+    const { email } = req.body;
+
+    try {
+        const user = await CompleteUser.findOne({ email });
+        if (!user) {
+            return res.status(400).json({ error: 'User not found' });
+        }
+
+        const resetToken = crypto.randomBytes(20).toString('hex');
+        user.resetPasswordToken = resetToken;
+        user.resetPasswordExpires = Date.now() + 3600000; // 1 hour
+        await user.save();
+
+        await transporter.sendMail({
+            from: process.env.EMAIL_FROM,
+            to: email,
+            subject: 'Password Reset Request',
+            text: `You are receiving this because you (or someone else) have requested the reset of the password for your account.\n\n
+             Please click on the following link, or paste this into your browser to complete the process:\n\n
+             ${process.env.CLIENT_URL}/reset-password/${resetToken}\n\n
+             If you did not request this, please ignore this email and your password will remain unchanged.\n`
+        });
+
+        res.status(200).json({ message: 'Password reset email sent' });
+    } catch (error) {
+        res.status(400).json({ error: 'Failed to initiate password reset' });
+    }
+};
+
+export const resetPassword = async (req, res) => {
+    const { token, newPassword } = req.body;
+
+    try {
+        const user = await CompleteUser.findOne({
+            resetPasswordToken: token,
+            resetPasswordExpires: { $gt: Date.now() }
+        });
+
+        if (!user) {
+            return res.status(400).json({ error: 'Invalid or expired reset token' });
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        user.password = hashedPassword;
+        user.resetPasswordToken = undefined;
+        user.resetPasswordExpires = undefined;
+        await user.save();
+
+        res.status(200).json({ message: 'Password reset successful' });
+    } catch (error) {
+        res.status(400).json({ error: 'Password reset failed' });
+    }
+};
