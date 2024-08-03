@@ -12,3 +12,41 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+model User {
+  id       String    @id @default(uuid())
+  name     String
+  email    String    @unique
+  password String
+  profile  Json?
+  contacts Contact[]
+  locations Location[]
+}
+
+model Contact {
+  id     String @id @default(uuid())
+  userId String
+  name   String
+  phone  String
+  email  String
+  user   User   @relation(fields: [userId], references: [id])
+  places Place[]
+}
+
+model Location {
+  id        String   @id @default(uuid())
+  userId    String
+  latitude  Float
+  longitude Float
+  timestamp DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model Place {
+  id        String  @id @default(uuid())
+  contactId String
+  name      String
+  latitude  Float
+  longitude Float
+  contact   Contact @relation(fields: [contactId], references: [id])
+}

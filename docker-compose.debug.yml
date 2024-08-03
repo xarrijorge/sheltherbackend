@@ -1,0 +1,14 @@
+version: '3.4'
+
+services:
+  typescript:
+    image: typescript
+    build:
+      context: node_modules/typescript
+      dockerfile: ./Dockerfile
+    environment:
+      NODE_ENV: development
+    ports:
+      - 8000:8000
+      - 9229:9229
+    command: ["node", "--inspect=0.0.0.0:9229", "./lib/typescript.js"]
