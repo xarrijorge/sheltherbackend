@@ -6,7 +6,7 @@ const app = express();
 const port = process.env.PORT || 8000;
 
 config();
-import userRoutes from './routes/User.js';
+import authRoutes from './routes/authRoutes.js';
 
 
 app.use(json());
@@ -18,7 +18,7 @@ connectDB();
 app.get('/', (req, res) => {
     res.send('Everyone deserves to live in a world where they feel safe!');
 });
-app.use('/api/users', userRoutes);
+app.use('/api/auth', authRoutes);
 
 // Start the server
 app.listen(port, () => {
