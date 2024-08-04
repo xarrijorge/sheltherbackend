@@ -6,5 +6,9 @@ import { authenticateToken } from '../middleware/authMiddleware.js';
 
 router.get('/', authenticateToken, getUser);
 router.put('/', authenticateToken, updateUser);
+router.patch('/addContact', authenticateToken, addContact);
+router.patch('/addPlace', authenticateToken, addPlace);
+router.patch('/addLocation', authenticateToken, addLocation);
+router.delete('/:index', authenticateToken, removeContact);
 
 export default router;

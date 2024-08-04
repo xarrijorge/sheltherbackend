@@ -57,3 +57,114 @@ export const updateUser = async (req, res) => {
         res.status(500).json({ error: 'An error occurred while updating the user' });
     }
 };
+
+export const addContact = async (req, res) => {
+    try {
+        const userEmail = req.user.email;
+        const newContact = req.body;
+
+        const user = await User.findOne({ email: userEmail });
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        // Validate new contact data
+        if (!newContact.name && !newContact.phone) {
+            return res.status(400).json({ error: 'Missing required contact information' });
+        }
+
+        // Add the new contact
+        user.contacts.push(newContact);
+
+        // Save the user to get the new contact's _id
+        await user.save();
+
+        // Get the newly added contact
+        const addedContact = user.contacts[user.contacts.length - 1];
+
+        // Send notification
+        // await sendContactNotification(user.email, addedContact);
+
+        res.status(201).json({ message: 'Contact added successfully', contact: addedContact });
+    } catch (error) {
+        console.error('Error adding contact:', error);
+        res.status(500).json({ error: 'An error occurred while adding the contact' });
+    }
+};
+
+export const addPlace = async (req, res) => {
+    try {
+        const userEmail = req.user.email;
+        const newPlace = req.body;
+
+        const user = await User.findOne({ email: userEmail });
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        // Validate new contact data
+        if (!newPlace.latitude && !newPlace.longitude) {
+            return res.status(400).json({ error: 'Missing required place information' });
+        }
+
+        // Add the new contact
+        user.places.push(newPlace);
+
+        // Save the user to get the new contact's _id
+        await user.save();
+
+        res.status(201).json({ message: 'Place added successfully', place: newPlace });
+    } catch (error) {
+        console.error('Error adding place:', error);
+        res.status(500).json({ error: 'An error occurred while adding the place' });
+    }
+};
+
+export const addLocation = async (req, res) => {
+    try {
+        const userEmail = req.user.email;
+        const newLocation = req.body;
+
+        const user = await User.findOne({ email: userEmail });
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        // Validate new contact data
+        if (!newLocation.latitude && !newLocation.longitude) {
+            return res.status(400).json({ error: 'Missing required location information' });
+        }
+
+        // Add the new contact
+        user.locations.push(newLocation);
+
+        // Save the user to get the new contact's _id
+        await user.save();
+
+        res.status(201).json({ message: 'Location added successfully', location: newLocation });
+    } catch (error) {
+        console.error('Error adding location:', error);
+        res.status(500).json({ error: 'An error occurred while adding the location' });
+    }
+};
+
+// remove contact by index
+export const removeContact = async (req, res) => {
+    try {
+        const userEmail = req.user.email;
+        const contactIndex = req.params.index;
+
+        const user = await User.findOne({ email: userEmail });
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        user.contacts.splice(contactIndex, 1);
+        await user.save();
+
+        res.status(200).json({ message: 'Contact removed successfully' });
+    } catch (error) {
+        console.error('Error removing contact:', error);
+        res.status(500).json({ error: 'An error occurred while removing the contact' });
+    }
+}
