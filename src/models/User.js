@@ -29,10 +29,18 @@ const userSchema = new mongoose.Schema({
         latitude: { type: Number, required: true },
         longitude: { type: Number, required: true }
     }],
-    profileComplete: { type: Boolean, default: false },
     resetPasswordToken: String,
     resetPasswordExpires: Date
 });
+
+
+
+// add virtual property to calculate profile completion
+userSchema.virtual('profileCompletion').get(() => {
+    return this.name && this.photo && this.address && this.contacts.length === 5 && this.places.length === 5;
+});
+// set profile completion to visible
+userSchema.set('toJSON', { virtuals: true });
 
 export const InitialUser = mongoose.model('InitialUser', initialUserSchema);
 export const User = mongoose.model('user', userSchema);

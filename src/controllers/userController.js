@@ -11,14 +11,9 @@ import { generateToken } from '../utils/generateJwtToken.js';
 
 
 
-
-const profileComplete = (user) => {
-    return user.name && user.phone && user.address && user.photo && user.contacts.length === 5 && user.places.length === 5;
-};
-
-
-
 // Main Controller functions
+// write description for each function
+
 export const registerUser = async (req, res) => {
     const { email, whatsapp, otpMethod = 'whatsapp' } = req.body;
 
@@ -62,7 +57,8 @@ export const registerUser = async (req, res) => {
         res.status(400).json({ error: 'User registration failed' });
     }
 };
-
+// Tested and works
+// Verify OTP
 export const verifyOtp = async (req, res) => {
     const { email, otp } = req.body;
 
@@ -101,7 +97,7 @@ export const completeUserProfile = async (req, res) => {
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        const completeUser = new CompleteUser({
+        const newUser = new User({
             email: initialUser.email,
             password: hashedPassword,
             name,
@@ -113,16 +109,16 @@ export const completeUserProfile = async (req, res) => {
             places,
         });
 
-        completeUser.profileComplete = profileComplete(completeUser);
+        const token = generateToken(newUser);
+        // attach token to user
 
-        await InitialUser.deleteOne({ email });
-        await completeUser.save();
+        await newUser.save();
+        // await InitialUser.deleteOne({ email });
 
-        const token = generateToken(completeUser);
 
+        res.cookie('token', token);
         res.status(200).json({
             message: 'User profile completed successfully',
-            user: completeUser,
             token
         });
     } catch (error) {
