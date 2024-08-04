@@ -33,12 +33,25 @@ const userSchema = new mongoose.Schema({
     resetPasswordExpires: Date
 });
 
+userSchema.methods.profileComplete = function () {
+    const requiredFields = ['name', 'photo', 'address'];
+    const totalFields = requiredFields.length + 2; // +2 for contacts and places
+    let completedFields = 0;
 
+    requiredFields.forEach(field => {
+        if (this[field] != null && this[field] !== '') completedFields++;
+    });
 
-// add virtual property to calculate profile completion
-userSchema.virtual('profileCompletion').get(() => {
-    return this.name && this.photo && this.address && this.contacts.length === 5 && this.places.length === 5;
+    if (Array.isArray(this.contacts) && this.contacts.length >= 5) completedFields++;
+    if (Array.isArray(this.places) && this.places.length >= 5) completedFields++;
+
+    return (completedFields / totalFields) * 100;
+};
+
+userSchema.virtual('profileCompletion').get(function () {
+    return this.profileComplete();
 });
+
 // set profile completion to visible
 userSchema.set('toJSON', { virtuals: true });
 

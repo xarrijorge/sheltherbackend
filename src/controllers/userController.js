@@ -44,9 +44,8 @@ export const registerUser = async (req, res) => {
         if (otpMethod === 'whatsapp') {
             try {
                 const result = await sendWhatsAppOTP(whatsapp, otp);
-                console.log('OTP sent successfully:', result);
             } catch (error) {
-                console.error('Failed to send OTP:', error.message);
+                return res.status(400).json({ error: 'Failed to send OTP' });
             }
         }
 
@@ -135,7 +134,7 @@ export const loginUser = async (req, res) => {
     }
 
     try {
-        const user = await CompleteUser.findOne({ email });
+        const user = await User.findOne({ email });
         if (!user) {
             return res.status(400).json({ error: 'User not found' });
         }
@@ -145,11 +144,12 @@ export const loginUser = async (req, res) => {
             return res.status(400).json({ error: 'Invalid credentials' });
         }
 
+
         const tokens = generateToken(user);
 
-        res.status(200).json({ message: 'Login successful', user, ...tokens });
+        return res.status(200).json({ message: 'Login successful', user, tokens });
     } catch (error) {
-        res.status(400).json({ error: 'Login failed' });
+        return res.status(500).json({ error: 'An unexpected error occurred', details: error.message });
     }
 };
 
@@ -163,7 +163,7 @@ export const refreshToken = async (req, res) => {
 
     try {
         const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
-        const user = await CompleteUser.findById(decoded.id);
+        const user = await User.findById(decoded.id);
         if (!user) {
             return res.status(400).json({ error: 'User not found' });
         }
@@ -185,7 +185,7 @@ export const changePassword = async (req, res) => {
     const userId = req.user.id; // Assuming you have middleware to extract user from token
 
     try {
-        const user = await CompleteUser.findById(userId);
+        const user = await User.findById(userId);
         if (!user) {
             return res.status(400).json({ error: 'User not found' });
         }
@@ -209,7 +209,7 @@ export const forgotPassword = async (req, res) => {
     const { email } = req.body;
 
     try {
-        const user = await CompleteUser.findOne({ email });
+        const user = await User.findOne({ email });
         if (!user) {
             return res.status(400).json({ error: 'User not found' });
         }
