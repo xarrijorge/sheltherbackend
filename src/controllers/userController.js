@@ -20,7 +20,7 @@ const profileComplete = (user) => {
 
 // Main Controller functions
 export const registerUser = async (req, res) => {
-    const { email, whatsapp, otpMethod } = req.body;
+    const { email, whatsapp, otpMethod = 'whatsapp' } = req.body;
 
     if (!email || !whatsapp) {
         return res.status(400).json({ error: 'Missing required fields' });
@@ -33,7 +33,7 @@ export const registerUser = async (req, res) => {
         }
 
         const otp = otpGenerator.generate(6, { upperCase: false, specialChars: false });
-        const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // OTP valid for 10 minutes
+        const otpExpires = new Date(new Date().getTime() + 10 * 60 * 1000).toLocaleString(); // OTP valid for 10 minutes in local timezone
 
         const initialUser = new InitialUser({
             email,
@@ -42,13 +42,20 @@ export const registerUser = async (req, res) => {
             otpExpires
         });
 
-        await initialUser.save();
 
-        if (otpMethod === 'email') {
-            await sendEmailOTP(email, otp);
-        } else {
-            await sendWhatsAppOTP(whatsapp, 'auth_otp', { otp });
+        // if (otpMethod === 'email') {
+        //     await sendEmailOTP(email, otp);
+        // }
+        if (otpMethod === 'whatsapp') {
+            try {
+                const result = await sendWhatsAppOTP(whatsapp, otp);
+                console.log('OTP sent successfully:', result);
+            } catch (error) {
+                console.error('Failed to send OTP:', error.message);
+            }
         }
+
+        await initialUser.save();
 
         res.status(201).json({ message: 'User registered successfully. Please verify OTP.' });
     } catch (error) {
