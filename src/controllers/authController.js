@@ -135,22 +135,30 @@ export const loginUser = async (req, res) => {
     }
 
     try {
-        const user = await User.findOne({ email });
+        const user = await User.findOne({ email }).select('+password');
         if (!user) {
-            return res.status(400).json({ error: 'User not found' });
+            return res.status(401).json({ error: 'Invalid credentials' });
         }
 
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
-            return res.status(400).json({ error: 'Invalid credentials' });
+            return res.status(401).json({ error: 'Invalid credentials' });
         }
-
 
         const tokens = generateToken(user);
 
-        return res.status(200).json({ message: 'Login successful', user, tokens });
+        // Remove password from user object before sending response
+        const userResponse = user.toObject();
+        delete userResponse.password;
+
+        return res.status(200).json({
+            message: 'Login successful',
+            user: userResponse,
+            tokens
+        });
     } catch (error) {
-        return res.status(500).json({ error: 'An unexpected error occurred', details: error.message });
+        console.error('Login error:', error);
+        return res.status(500).json({ error: 'An unexpected error occurred' });
     }
 };
 
