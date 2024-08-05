@@ -1,261 +1,191 @@
-import bcrypt from 'bcrypt';
-import crypto from 'crypto';
-import otpGenerator from 'otp-generator';
-import { InitialUser, User } from '../models/User.js';
+import { User } from '../models/User.js'
+import { sendNewContactMessage, sendEmergencyMessage } from '../utils/whatsappApi.js'
 
-// Assume you have this function implemented
-import { sendWhatsAppOTP } from '../utils/whatsappApi.js';
-import { sendEmailOTP } from '../utils/emailMessage.js';
-import { generateToken } from '../utils/generateJwtToken.js';
-
-
-
-
-// Main Controller functions
-// write description for each function
-
-export const registerUser = async (req, res) => {
-    const { email, whatsapp, otpMethod = 'whatsapp' } = req.body;
-
-    if (!email || !whatsapp) {
-        return res.status(400).json({ error: 'Missing required fields' });
-    }
-
+export const getUser = async (req, res) => {
     try {
-        const existingData = await InitialUser.findOne({ $or: [{ email }, { whatsapp }] });
-        if (existingData) {
-            return res.status(400).json({ error: 'Email or whatsapp number already in use' });
+        const { email } = req.body
+        const user = await User.findOne({ email }).select('-password');
+
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
         }
 
-        const otp = otpGenerator.generate(6, { upperCase: false, specialChars: false });
-        const otpExpires = new Date(new Date().getTime() + 10 * 60 * 1000).toLocaleString(); // OTP valid for 10 minutes in local timezone
+        res.status(200).json(user);
+    } catch (error) {
+        console.error('Error getting user:', error);
+        res.status(500).json({ error: 'An error occurred while fetching the user' });
+    }
+};
 
-        const initialUser = new InitialUser({
-            email,
-            whatsapp,
-            otp,
-            otpExpires
-        });
+export const updateUser = async (req, res) => {
+    try {
+        const email = req.user.email;
+        const updateData = req.body;
 
+        const allowedUpdates = ['name', 'photo', 'address', 'contacts', 'places', 'locations'];
+        const sanitizedData = Object.keys(updateData)
+            .filter(key => allowedUpdates.includes(key))
+            .reduce((obj, key) => {
+                obj[key] = updateData[key];
+                return obj;
+            }, {});
 
-        // if (otpMethod === 'email') {
-        //     await sendEmailOTP(email, otp);
-        // }
-        if (otpMethod === 'whatsapp') {
-            try {
-                const result = await sendWhatsAppOTP(whatsapp, otp);
-            } catch (error) {
-                return res.status(400).json({ error: 'Failed to send OTP' });
+        const user = await User.findOne({ email });
+
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        // Handle array fields
+        ['contacts', 'places', 'locations'].forEach(field => {
+            if (Array.isArray(sanitizedData[field])) {
+                // Replace the entire array
+                user[field] = sanitizedData[field];
+                delete sanitizedData[field];
             }
-        }
-
-        await initialUser.save();
-
-        res.status(201).json({ message: 'User registered successfully. Please verify OTP.' });
-    } catch (error) {
-        res.status(400).json({ error: 'User registration failed' });
-    }
-};
-// Tested and works
-// Verify OTP
-export const verifyOtp = async (req, res) => {
-    const { email, otp } = req.body;
-
-    try {
-        const user = await InitialUser.findOne({ email });
-        if (!user) {
-            return res.status(400).json({ error: 'User not found' });
-        }
-
-        if (user.otp !== otp || user.otpExpires < new Date()) {
-            return res.status(400).json({ error: 'Invalid or expired OTP' });
-        }
-
-        user.otp = undefined;
-        user.otpExpires = undefined;
-        await user.save();
-
-        res.status(200).json({ message: 'OTP verified successfully. Please complete your profile.' });
-    } catch (error) {
-        res.status(400).json({ error: 'OTP verification failed' });
-    }
-};
-
-export const completeUserProfile = async (req, res) => {
-    const { email, password, name, photo, address, contacts, locations, places } = req.body;
-
-    if (!email || !password || !name || !photo || !address || !contacts || contacts.length < 1 || !places || places.length < 2) {
-        return res.status(400).json({ error: 'Missing or insufficient required fields' });
-    }
-
-    try {
-        const initialUser = await InitialUser.findOne({ email });
-        if (!initialUser) {
-            return res.status(400).json({ error: 'Initial registration not found or OTP not verified' });
-        }
-
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-        const newUser = new User({
-            email: initialUser.email,
-            password: hashedPassword,
-            name,
-            whatsapp: initialUser.whatsapp,
-            photo,
-            address,
-            contacts,
-            locations,
-            places,
         });
 
-        const token = generateToken(newUser);
-        // attach token to user
+        // Update other fields
+        Object.assign(user, sanitizedData);
 
-        await newUser.save();
-        // await InitialUser.deleteOne({ email });
-
-
-        res.cookie('token', token);
-        res.status(200).json({
-            message: 'User profile completed successfully',
-            token
-        });
-    } catch (error) {
-        res.status(400).json({ error: 'User profile completion failed' });
-    }
-};
-
-
-export const loginUser = async (req, res) => {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-        return res.status(400).json({ error: 'Missing required fields' });
-    }
-
-    try {
-        const user = await User.findOne({ email });
-        if (!user) {
-            return res.status(400).json({ error: 'User not found' });
-        }
-
-        const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) {
-            return res.status(400).json({ error: 'Invalid credentials' });
-        }
-
-
-        const tokens = generateToken(user);
-
-        return res.status(200).json({ message: 'Login successful', user, tokens });
-    } catch (error) {
-        return res.status(500).json({ error: 'An unexpected error occurred', details: error.message });
-    }
-};
-
-
-// Helper Controller functions
-export const refreshToken = async (req, res) => {
-    const { refreshToken } = req.body;
-    if (!refreshToken) {
-        return res.status(400).json({ error: 'Refresh token required' });
-    }
-
-    try {
-        const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
-        const user = await User.findById(decoded.id);
-        if (!user) {
-            return res.status(400).json({ error: 'User not found' });
-        }
-
-        const tokens = generateToken(user);
-        res.status(200).json(tokens);
-    } catch (error) {
-        res.status(401).json({ error: 'Invalid refresh token' });
-    }
-};
-
-export const logoutUser = async (req, res) => {
-
-    res.status(200).json({ message: 'Logged out successfully' });
-};
-
-export const changePassword = async (req, res) => {
-    const { currentPassword, newPassword } = req.body;
-    const userId = req.user.id; // Assuming you have middleware to extract user from token
-
-    try {
-        const user = await User.findById(userId);
-        if (!user) {
-            return res.status(400).json({ error: 'User not found' });
-        }
-
-        const isMatch = await bcrypt.compare(currentPassword, user.password);
-        if (!isMatch) {
-            return res.status(400).json({ error: 'Current password is incorrect' });
-        }
-
-        const hashedPassword = await bcrypt.hash(newPassword, 10);
-        user.password = hashedPassword;
         await user.save();
 
-        res.status(200).json({ message: 'Password changed successfully' });
+        const updatedUser = await User.findOne({ email }).select('-password');
+
+        res.status(200).json({ message: 'User updated successfully', user: updatedUser });
     } catch (error) {
-        res.status(400).json({ error: 'Password change failed' });
+        console.error('Error updating user:', error);
+        res.status(500).json({ error: 'An error occurred while updating the user' });
     }
 };
 
-export const forgotPassword = async (req, res) => {
-    const { email } = req.body;
-
+export const addContact = async (req, res) => {
     try {
-        const user = await User.findOne({ email });
+        const userEmail = req.user.email;
+        const newContact = req.body;
+
+        const user = await User.findOne({ email: userEmail });
         if (!user) {
-            return res.status(400).json({ error: 'User not found' });
+            return res.status(404).json({ error: 'User not found' });
         }
 
-        const resetToken = crypto.randomBytes(20).toString('hex');
-        user.resetPasswordToken = resetToken;
-        user.resetPasswordExpires = Date.now() + 3600000; // 1 hour
+        if (!newContact.name && !newContact.phone) {
+            return res.status(400).json({ error: 'Missing required contact information' });
+        }
+        // Add the new contact
+        user.contacts.push(newContact);
+        // Save the user to get the new contact's _id
         await user.save();
+        // Get the newly added contact
+        const addedContact = user.contacts[user.contacts.length - 1];
+        // Send notification
+        const { phone, name } = addedContact;
+        await sendNewContactMessage(phone, user.name);
 
-        await transporter.sendMail({
-            from: process.env.EMAIL_FROM,
-            to: email,
-            subject: 'Password Reset Request',
-            text: `You are receiving this because you (or someone else) have requested the reset of the password for your account.\n\n
-             Please click on the following link, or paste this into your browser to complete the process:\n\n
-             ${process.env.CLIENT_URL}/reset-password/${resetToken}\n\n
-             If you did not request this, please ignore this email and your password will remain unchanged.\n`
-        });
-
-        res.status(200).json({ message: 'Password reset email sent' });
+        res.status(201).json({ message: 'Contact added successfully', contact: addedContact });
     } catch (error) {
-        res.status(400).json({ error: 'Failed to initiate password reset' });
+        console.error('Error adding contact:', error);
+        res.status(500).json({ error: 'An error occurred while adding the contact' });
     }
 };
 
-export const resetPassword = async (req, res) => {
-    const { token, newPassword } = req.body;
-
+export const addPlace = async (req, res) => {
     try {
-        const user = await CompleteUser.findOne({
-            resetPasswordToken: token,
-            resetPasswordExpires: { $gt: Date.now() }
-        });
+        const userEmail = req.user.email;
+        const newPlace = req.body;
 
+        const user = await User.findOne({ email: userEmail });
         if (!user) {
-            return res.status(400).json({ error: 'Invalid or expired reset token' });
+            return res.status(404).json({ error: 'User not found' });
         }
 
-        const hashedPassword = await bcrypt.hash(newPassword, 10);
-        user.password = hashedPassword;
-        user.resetPasswordToken = undefined;
-        user.resetPasswordExpires = undefined;
+        // Validate new contact data
+        if (!newPlace.latitude && !newPlace.longitude) {
+            return res.status(400).json({ error: 'Missing required place information' });
+        }
+
+        // Add the new contact
+        user.places.push(newPlace);
+
+        // Save the user to get the new contact's _id
         await user.save();
 
-        res.status(200).json({ message: 'Password reset successful' });
+        res.status(201).json({ message: 'Place added successfully', place: newPlace });
     } catch (error) {
-        res.status(400).json({ error: 'Password reset failed' });
+        console.error('Error adding place:', error);
+        res.status(500).json({ error: 'An error occurred while adding the place' });
     }
 };
+
+export const addLocation = async (req, res) => {
+    try {
+        const userEmail = req.user.email;
+        const newLocation = req.body;
+
+        const user = await User.findOne({ email: userEmail });
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        // Validate new contact data
+        if (!newLocation.latitude && !newLocation.longitude) {
+            return res.status(400).json({ error: 'Missing required location information' });
+        }
+
+        // Add the new contact
+        user.locations.push(newLocation);
+
+        // Save the user to get the new contact's _id
+        await user.save();
+
+        res.status(201).json({ message: 'Location added successfully', location: newLocation });
+    } catch (error) {
+        console.error('Error adding location:', error);
+        res.status(500).json({ error: 'An error occurred while adding the location' });
+    }
+};
+
+// remove contact by index
+export const removeContact = async (req, res) => {
+    try {
+        const userEmail = req.user.email;
+        const contactId = req.params.id;
+
+        const user = await User.findOne({ email: userEmail });
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        console.log('params', contactId);
+
+        // Find the index of the contact by _id
+        const contactIndex = user.contacts.findIndex(contact => contact._id.toString() === contactId);
+        console.log(contactIndex);
+
+        if (contactIndex === -1) {
+            return res.status(404).json({ error: 'Contact not found' });
+        }
+
+        // Remove the contact using splice
+        user.contacts.splice(contactIndex, 1);
+
+        await user.save();
+
+        res.status(200).json({ message: 'Contact removed successfully' });
+    } catch (error) {
+        console.error('Error removing contact:', error);
+        res.status(500).json({ error: 'An error occurred while removing the contact' });
+    }
+}
+
+export const emergencyBroadcast = async (req, res) => {
+    const userEmail = req.user.email;
+    const { lat, long } = req.body;
+    const user = await User.findOne({ email: userEmail })
+    const { name, contacts } = user;
+
+    contacts.forEach(contact => {
+        sendEmergencyMessage(contact.phone, name, lat, long);
+    });
+    res.status(200).json({ message: 'Emergency broadcast sent' });
+}

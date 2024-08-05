@@ -17,7 +17,7 @@ const userSchema = new mongoose.Schema({
     contacts: [{
         name: { type: String, required: true },
         phone: { type: String, required: true },
-        email: { type: String, required: true }
+        email: { type: String }
     }],
     locations: [{
         latitude: { type: Number, required: true },
@@ -25,7 +25,7 @@ const userSchema = new mongoose.Schema({
         timestamp: { type: Date, required: true }
     }],
     places: [{
-        name: { type: String, required: true },
+        name: { type: String },
         latitude: { type: Number, required: true },
         longitude: { type: Number, required: true }
     }],

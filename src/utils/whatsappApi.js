@@ -9,7 +9,6 @@ const headers = {
 };
 
 export const sendWhatsAppOTP = async (contact, otp) => {
-    console.log('token', token)
     const data = {
         messaging_product: 'whatsapp',
         to: contact,
@@ -53,8 +52,79 @@ export const sendWhatsAppOTP = async (contact, otp) => {
     }
 };
 
-export const sendEmergencyMessage = async () => {
-    const response = await axios.post(`https://api.whatsapp.com/send?phone=${phoneNumber}&text=${message}`);
-    return response.data;
-}
 
+export const sendNewContactMessage = async (contact, name) => {
+    const data = {
+        messaging_product: 'whatsapp',
+        to: contact,
+        type: 'template',
+        template: {
+            name: 'new_contact',
+            language: {
+                code: 'en'
+            },
+            components: [
+                {
+                    type: 'body',
+                    parameters: [
+                        {
+                            type: 'text',
+                            text: name
+                        }
+                    ]
+                },
+            ]
+        }
+    };
+
+    try {
+        const response = await axios.post(url, data, { headers });
+        return response.data;
+    } catch (error) {
+        console.error('Error:', error.response ? error.response.data : error.message);
+        throw error; // Re-throw the error for the caller to handle
+    }
+};
+
+
+export const sendEmergencyMessage = async (contact, name, lat, long) => {
+
+    const data = {
+        messaging_product: 'whatsapp',
+        to: contact,
+        type: 'template',
+        template: {
+            name: 'emergency',
+            language: {
+                code: 'en'
+            },
+            components: [
+                {
+                    type: 'body',
+                    parameters: [
+                        {
+                            type: "text",
+                            text: name
+                        },
+                        {
+                            type: "text",
+                            text: lat
+                        },
+                        {
+                            type: "text",
+                            text: long
+                        }
+                    ]
+                }
+            ]
+        }
+    };
+
+    try {
+        const response = await axios.post(url, data, { headers });
+        return response.data;
+    } catch (error) {
+        console.error('Error:', error.response ? error.response.data : error.message);
+        throw error; // Re-throw the error for the caller to handle
+    }
+};
