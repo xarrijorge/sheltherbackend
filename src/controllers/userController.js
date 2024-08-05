@@ -1,4 +1,5 @@
 import { User } from '../models/User.js'
+import { sendNewContactMessage } from '../utils/whatsappApi.js'
 
 export const getUser = async (req, res) => {
     try {
@@ -68,22 +69,18 @@ export const addContact = async (req, res) => {
             return res.status(404).json({ error: 'User not found' });
         }
 
-        // Validate new contact data
         if (!newContact.name && !newContact.phone) {
             return res.status(400).json({ error: 'Missing required contact information' });
         }
-
         // Add the new contact
         user.contacts.push(newContact);
-
         // Save the user to get the new contact's _id
         await user.save();
-
         // Get the newly added contact
         const addedContact = user.contacts[user.contacts.length - 1];
-
         // Send notification
-        // await sendContactNotification(user.email, addedContact);
+        const { phone, name } = addedContact;
+        await sendNewContactMessage(phone, user.name);
 
         res.status(201).json({ message: 'Contact added successfully', contact: addedContact });
     } catch (error) {
