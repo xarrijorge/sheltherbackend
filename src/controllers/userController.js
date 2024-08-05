@@ -1,5 +1,5 @@
 import { User } from '../models/User.js'
-import { sendNewContactMessage } from '../utils/whatsappApi.js'
+import { sendNewContactMessage, sendEmergencyMessage } from '../utils/whatsappApi.js'
 
 export const getUser = async (req, res) => {
     try {
@@ -149,14 +149,26 @@ export const addLocation = async (req, res) => {
 export const removeContact = async (req, res) => {
     try {
         const userEmail = req.user.email;
-        const contactIndex = req.params.index;
+        const contactId = req.params.id;
 
         const user = await User.findOne({ email: userEmail });
         if (!user) {
             return res.status(404).json({ error: 'User not found' });
         }
 
+        console.log('params', contactId);
+
+        // Find the index of the contact by _id
+        const contactIndex = user.contacts.findIndex(contact => contact._id.toString() === contactId);
+        console.log(contactIndex);
+
+        if (contactIndex === -1) {
+            return res.status(404).json({ error: 'Contact not found' });
+        }
+
+        // Remove the contact using splice
         user.contacts.splice(contactIndex, 1);
+
         await user.save();
 
         res.status(200).json({ message: 'Contact removed successfully' });
@@ -164,4 +176,16 @@ export const removeContact = async (req, res) => {
         console.error('Error removing contact:', error);
         res.status(500).json({ error: 'An error occurred while removing the contact' });
     }
+}
+
+export const emergencyBroadcast = async (req, res) => {
+    const userEmail = req.user.email;
+    const { lat, long } = req.body;
+    const user = await User.findOne({ email: userEmail })
+    const { name, contacts } = user;
+
+    contacts.forEach(contact => {
+        sendEmergencyMessage(contact.phone, name, lat, long);
+    });
+    res.status(200).json({ message: 'Emergency broadcast sent' });
 }
