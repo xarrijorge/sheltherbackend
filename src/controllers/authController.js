@@ -83,7 +83,7 @@ export const verifyOtp = async (req, res) => {
 };
 
 export const completeUserProfile = async (req, res) => {
-    const { email, password, name, photo, address, contacts, locations, places } = req.body;
+    const { email, password, name, photo, address, contacts} = req.body;
 
     if (!email || !password || !name || !photo || !address || !contacts || contacts.length < 1  ) {
         return res.status(400).json({ error: 'Missing or insufficient required fields' });
@@ -105,8 +105,6 @@ export const completeUserProfile = async (req, res) => {
             photo,
             address,
             contacts,
-            locations,
-            places,
         });
 
         const token = generateToken(newUser);
