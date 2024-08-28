@@ -17,7 +17,7 @@ connectDB();
 
 
 app.get('/', (req, res) => {
-    res.send("Everyone deserves to live in a world where they feel safe! 💜 - S.M. Mwitumi")
+    res.send('SHELTHER! Everyone deserves to live in a world where they feel safe!');
 });
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
