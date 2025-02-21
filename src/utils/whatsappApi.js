@@ -69,6 +69,7 @@ export const sendNewContactMessage = async (contact, name) => {
                     parameters: [
                         {
                             type: 'text',
+                            parameter_name: "user",
                             text: name
                         }
                     ]
@@ -91,6 +92,7 @@ export const sendEmergencyMessage = async (contact, name, lat, long) => {
 
     const data = {
         messaging_product: 'whatsapp',
+        recipient_type: 'individual',
         to: contact,
         type: 'template',
         template: {
@@ -104,14 +106,17 @@ export const sendEmergencyMessage = async (contact, name, lat, long) => {
                     parameters: [
                         {
                             type: "text",
+                            parameter_name: "person",
                             text: name
                         },
                         {
                             type: "text",
+                            parameter_name: "lat",
                             text: lat
                         },
                         {
                             type: "text",
+                            parameter_name: "long",
                             text: long
                         }
                     ]
